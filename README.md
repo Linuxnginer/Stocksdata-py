@@ -1,6 +1,8 @@
 # Stocksdata-py
 
 A Streamlit microservice that displays **live stock prices** and **trending tickers**.
+
+https://stockdatapy.streamlit.app
 ---
 
 ## 🔍 Features
