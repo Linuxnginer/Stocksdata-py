@@ -1,4 +1,4 @@
-# 🧠 StocksData-Py
+# StocksData-Py
 
 A powerful Streamlit microservice for tracking real-time stock prices, trending tickers, and interacting with an AI-powered stock assistant.
 
