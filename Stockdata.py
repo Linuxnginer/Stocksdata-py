@@ -2,12 +2,12 @@
 import streamlit as st
 import yfinance as yf
 import requests
-import time
+from datetime import datetime, timedelta
 
 # Page setup
 st.set_page_config(layout="wide", page_title="stocks.py Microservice")
 
-# Get quote using yfinance
+# Quote retrieval
 @st.cache_data(ttl=60)
 def get_quote(symbol):
     try:
@@ -27,7 +27,7 @@ def get_quote(symbol):
         print(f"Error fetching data for {symbol}: {e}")
         return None
 
-# Get trending tickers from ApeWisdom
+# Trending tickers from ApeWisdom
 def get_trending():
     try:
         url = "https://apewisdom.io/api/v1.0/filter/all"
@@ -37,36 +37,50 @@ def get_trending():
         print(f"Error fetching trending tickers: {e}")
         return []
 
+# Gemini 2.5 Flash Chat Function
+def ask_gemini(message, api_key):
+    try:
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key
+        }
+        body = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": message}
+                    ]
+                }
+            ]
+        }
+        response = requests.post(url, headers=headers, json=body, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        return f"Error: {e}"
+
 # Title
 st.title("stocks.py Microservice")
 
-# Default tickers
-default_tickers = ["SPY", "QQQ", "BTC-USD", "META"]
-
-# Custom ticker input
-custom_input = st.text_input("Add your own ticker symbols:", value="")
-custom_tickers = [x.strip().upper() for x in custom_input.split(",") if x.strip()]
-tickers = default_tickers + custom_tickers
-
-# Layout: stock cards on the left, trending on the right
+# Layout: stock cards (left), trending tickers (right)
 left_col, right_col = st.columns([3, 1])
 
-# Right side: Trending Tickers styled like stock cards
+# --- RIGHT: Trending Tickers ---
 with right_col:
     st.markdown("### Trending Tickers")
-
     trending = get_trending()
     if not trending:
         st.info("No trending data available right now.")
     else:
-        for i in range(0, len(trending), 2):  # 2 columns per row
+        for i in range(0, len(trending), 2):
             row = st.columns(2)
             for j in range(2):
                 if i + j < len(trending):
                     item = trending[i + j]
                     sym = item["ticker"]
                     url = f"https://finance.yahoo.com/quote/{sym}"
-
                     with row[j]:
                         st.markdown(f"""
                         <div style='background:#111;padding:1.5em;border-radius:16px;text-align:center;
@@ -76,29 +90,46 @@ with right_col:
                         </div>
                         """, unsafe_allow_html=True)
 
-# Left side: Live Stock Cards
+# --- LEFT: Stock Cards ---
 with left_col:
-    st.markdown("### Stocks Data ")
-    cols = st.columns(min(len(tickers), 4))
-    for i, sym in enumerate(tickers):
-        if i % 4 == 0 and i > 0:
-            cols = st.columns(min(len(tickers) - i, 4))
-        col = cols[i % 4]
+    st.markdown("### Stocks Data")
+
+    default_values = ["SPY", "QQQ", "BTC-USD", "META"]
+    symbols = []
+    input_cols = st.columns(4)
+    for i in range(4):
+        sym = input_cols[i].text_input(f"Symbol {i+1}", value=default_values[i]).upper().strip()
+        symbols.append(sym)
+
+    row1, row2 = st.columns(2), st.columns(2)
+    rows = row1 + row2
+
+    for i, sym in enumerate(symbols):
         q = get_quote(sym)
-        if not q:
-            col.error(f"{sym} failed to load")
-            continue
+        with rows[i]:
+            if not q:
+                st.error(f"{sym} failed to load")
+                continue
+            color = "#00FF00" if q["change"] >= 0 else "#FF4B4B"
+            st.markdown(f"""
+            <div style='background:#111;padding:1.5em;border-radius:16px;text-align:center;
+            color:{color};box-shadow:0 4px 20px rgba(0,255,0,0.2);'>
+                <div style='color:white;font-size:20px;font-family:sans-serif;margin-bottom:5px;'>{sym}</div>
+                <div style='font-size:32px;font-weight:bold;'>{q['current']:.2f}</div>
+                <div style='font-size:16px;'>Change: {q['change']:+.2f} ({q['percent']:+.2f}%)</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        color = "#00FF00" if q["change"] >= 0 else "#FF4B4B"
-        col.markdown(f"""
-        <div style='background:#111;padding:1.5em;border-radius:16px;text-align:center;
-        color:{color};box-shadow:0 4px 20px rgba(0,255,0,0.2);'>
-            <div style='color:white;font-size:20px;font-family:sans-serif;margin-bottom:5px;'>{sym}</div>
-            <div style='font-size:32px;font-weight:bold;'>{q['current']:.2f}</div>
-            <div style='font-size:16px;'>Change: {q['change']:+.2f} ({q['percent']:+.2f}%)</div>
-        </div>
-        """, unsafe_allow_html=True)
+# --- LEFT (bottom): Gemini Chat Assistant ---
+with left_col:
+    st.markdown("### Stock AI Assistant")
 
-# Optional auto-refresh (manual control)
-# time.sleep(60)
-# st.experimental_rerun()
+    gemini_key = st.text_input("Gemini API Key", type="password")
+    user_message = st.text_area("Ask a stock-related question")
+
+    if st.button("Ask Gemini") and user_message and gemini_key:
+        with st.spinner("Thinking..."):
+            reply = ask_gemini(user_message, gemini_key)
+            st.markdown("#### Response:")
+            st.write(reply)
+
