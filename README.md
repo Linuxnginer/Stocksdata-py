@@ -2,7 +2,7 @@
 
 A powerful Streamlit microservice for tracking real-time stock prices, trending tickers, and interacting with an AI-powered stock assistant.
 
-🔗 **Live App:** [https://stockdatapy.streamlit.app](https://stockdatapy.streamlit.app)
+🔗 **Live App:** [https://stockdatapy.streamlit.app](https://stocksdata-ai-py.streamlit.app)
 
 ---
 
